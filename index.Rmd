@@ -1,0 +1,198 @@
+---
+title: An R Markdown document converted from "~/Desktop/week5_hw1/FSI_Week5_Exercise1_Colab.ipynb"
+output: html_document
+---
+
+# Exercise 1: Fragile States Index Analysis
+**Author:** Amogh Guthur
+
+This notebook reads FSI data (2006-2023) from GitHub, appends all files vertically, cleans columns, and creates visualizations.
+
+## Setup: Install and Load Packages
+
+```{r}
+# Install required packages for data manipulation and reading Excel files
+install.packages(c("tidyverse", "readxl", "httr"), quiet = TRUE, repos = "http://cran.us.r-project.org")
+```
+
+```{r}
+# Load tidyverse for data manipulation and visualization
+library(tidyverse)
+```
+
+```{r}
+# Load readxl for reading Excel files
+library(readxl)
+```
+
+```{r}
+# Load httr for downloading files from URLs
+library(httr)
+```
+
+## Step 1: Define GitHub URL and Years
+
+```{r}
+# Set base URL for GitHub repository containing FSI Excel files
+base_url <- "https://github.com/FundamentalsAmogh/week5_hw1/raw/main/"
+```
+
+```{r}
+# Create vector of years from 2006 to 2023
+years <- 2006:2023
+```
+
+## Step 2: Create Function to Read Files from GitHub
+
+```{r}
+# Function to download and read each FSI Excel file from GitHub
+# Adds Year column to track which year the data came from
+read_fsi <- function(year) {
+  url <- paste0(base_url, "fsi-", year, ".xlsx")
+  temp <- tempfile(fileext = ".xlsx")
+  GET(url, write_disk(temp, overwrite = TRUE))
+  read_excel(temp) %>% mutate(Year = year)
+}
+```
+
+## Step 3: Read All Files and Append Vertically
+
+```{r}
+# Apply function to all years and bind rows into one dataframe
+fsi_raw <- map_dfr(years, read_fsi)
+```
+
+```{r}
+# Check dimensions to verify all files loaded
+cat("Rows:", nrow(fsi_raw), "Columns:", ncol(fsi_raw))
+```
+
+## Step 4: View Original Column Names
+
+```{r}
+# Display current column names to understand structure
+names(fsi_raw)
+```
+
+## Step 5: Clean Column Names
+
+```{r}
+# Replace spaces and colons with underscores
+fsi_clean <- fsi_raw %>% rename_with(~ gsub("[: ]+", "_", .x))
+```
+
+```{r}
+# Remove any double underscores created during cleaning
+fsi_clean <- fsi_clean %>% rename_with(~ gsub("_+", "_", .x))
+```
+
+```{r}
+# View cleaned column names
+names(fsi_clean)
+```
+
+## Step 6: Select Required Columns
+
+```{r}
+# Keep only columns specified in assignment: Country, Year, Rank, Total, and all indicators
+fsi_select <- fsi_clean %>% select(Country, Year, Rank, Total, starts_with("C1"), starts_with("C2"), starts_with("C3"), starts_with("E1"), starts_with("E2"), starts_with("E3"), starts_with("P1"), starts_with("P2"), starts_with("P3"), starts_with("S1"), starts_with("S2"), starts_with("X1"))
+```
+
+## Step 7: Rename Columns to Match Requirements
+
+```{r}
+# Define exact column names required by assignment
+target_names <- c("Country", "Year", "Rank", "Total", "C1_Security_Apparatus", "C2_Factionalized_Elites", "C3_Group_Grievance", "E1_Economy", "E2_Economic_Inequality", "E3_Human_Flight_and_Brain_Drain", "P1_State_Legitimacy", "P2_Public_Services", "P3_Human_Rights", "S1_Demographic_Pressures", "S2_Refugees_and_IDPs", "X1_External_Intervention")
+```
+
+```{r}
+# Apply target column names to dataframe
+names(fsi_select) <- target_names
+```
+
+## Step 8: Clean Rank Column to Integer
+
+```{r}
+# Extract only numeric value from Rank (removes text like "1st", "2nd")
+fsi_select$Rank <- as.integer(gsub("[^0-9]", "", fsi_select$Rank))
+```
+
+## Step 9: Ensure Year is Integer
+
+```{r}
+# Convert Year column to integer format
+fsi_select$Year <- as.integer(fsi_select$Year)
+```
+
+## Step 10: Verify Final Data Structure
+
+```{r}
+# Check structure to confirm all columns have correct data types
+str(fsi_select)
+```
+
+```{r}
+# Display first 10 rows of cleaned dataset
+head(fsi_select, 10)
+```
+
+## Step 11: Boxplot of Total by Year
+
+This boxplot shows the distribution of Total FSI scores for each year from 2006-2023. Higher scores indicate greater state fragility. The plot reveals how fragility scores have changed over time across all countries, with the median, quartiles, and outliers visible for each year.
+
+```{r}
+# Create boxplot of Total FSI scores by Year
+# Higher scores indicate greater state fragility
+ggplot(fsi_select, aes(x = factor(Year), y = Total)) + geom_boxplot(fill = "steelblue", alpha = 0.7) + labs(title = "Distribution of Fragile States Index Total Scores by Year (2006-2023)", subtitle = "Higher scores indicate greater state fragility", x = "Year", y = "Total FSI Score", caption = "Source: Fund for Peace Fragile States Index") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Step 12: Filter Data for 2013 and 2023
+
+```{r}
+# Subset data to only include years 2013 and 2023 for comparison
+fsi_compare <- fsi_select %>% filter(Year %in% c(2013, 2023))
+```
+
+```{r}
+# Select only Country, Year, and the three cohesion indicators (C1, C2, C3)
+fsi_cohesion <- fsi_compare %>% select(Country, Year, C1_Security_Apparatus, C2_Factionalized_Elites, C3_Group_Grievance)
+```
+
+## Step 13: Reshape to Long Format for Faceting
+
+```{r}
+# Pivot cohesion indicators from wide to long format
+# This allows faceted plotting by indicator
+fsi_long <- fsi_cohesion %>% pivot_longer(cols = c(C1_Security_Apparatus, C2_Factionalized_Elites, C3_Group_Grievance), names_to = "Indicator", values_to = "Score")
+```
+
+```{r}
+# Verify reshaped data structure
+head(fsi_long)
+```
+
+## Step 14: Faceted Histogram of Cohesion Indicators
+
+This faceted histogram compares the distribution of three cohesion indicators between 2013 and 2023: C1 (Security Apparatus), C2 (Factionalized Elites), and C3 (Group Grievance). Each facet shows one indicator with overlapping histograms for both years, allowing us to see how these cohesion factors have shifted over the decade.
+
+```{r}
+# Create faceted histogram comparing C1, C2, C3 between 2013 and 2023
+# Each facet shows one indicator with overlapping histograms by year
+ggplot(fsi_long, aes(x = Score, fill = factor(Year))) + geom_histogram(bins = 15, alpha = 0.6, position = "identity") + facet_wrap(~ Indicator, ncol = 1, scales = "free_y") + scale_fill_manual(values = c("2013" = "coral", "2023" = "steelblue"), name = "Year") + labs(title = "Cohesion Indicators: Comparing 2013 vs 2023", subtitle = "Distribution of scores across all countries for each indicator", x = "Score (0-10 scale)", y = "Number of Countries", caption = "Source: Fund for Peace Fragile States Index") + theme_minimal()
+```
+
+## Summary
+
+**Files Read:** 18 FSI Excel files (2006-2023) from GitHub
+
+**Columns Kept:** Country, Year, Rank, Total, C1_Security_Apparatus, C2_Factionalized_Elites, C3_Group_Grievance, E1_Economy, E2_Economic_Inequality, E3_Human_Flight_and_Brain_Drain, P1_State_Legitimacy, P2_Public_Services, P3_Human_Rights, S1_Demographic_Pressures, S2_Refugees_and_IDPs, X1_External_Intervention
+
+**Plots Created:**
+1. Boxplot of Total FSI scores by Year (2006-2023)
+2. Faceted histograms comparing C1, C2, C3 between 2013 and 2023
+
+```{r}
+# Display final column names to confirm they match requirements
+names(fsi_select)
+```
+

@@ -1,6 +1,6 @@
 # Exercise 1: Fragile States Index Analysis
 
-**Live Report:** https://fundamentalsamogh.github.io/week5_hw1/
+**Github Pages Link:** https://fundamentalsamogh.github.io/week5_hw1/
 
 ## Overview
 
